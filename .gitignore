@@ -1,0 +1,82 @@
+# ============================================================
+# OPEN-FLOYD .gitignore
+# ============================================================
+
+# ── Secrets & Credentials (NEVER COMMIT) ─────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.p12
+**/credentials.*
+**/secrets.*
+
+# ── Original spec (contains redacted key placeholders) ───────
+docs/ORIGINAL-SPEC.md
+
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+
+# ── Build output ─────────────────────────────────────────────
+dist/
+
+# ── IDE & Editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── OS artifacts ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+
+# ── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# ── Test artifacts ───────────────────────────────────────────
+coverage/
+test-screenshots/
+tests/fixtures/
+
+# ── Runtime artifacts ────────────────────────────────────────
+runtime/*.wasm
+
+# ── WhatsApp auth state (SENSITIVE) ──────────────────────────
+wa_auth/
+
+# ── Database files ───────────────────────────────────────────
+workspace/*.db
+workspace/*.db-journal
+workspace/*.db-wal
+workspace/*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Redis ────────────────────────────────────────────────────
+dump.rdb
+
+# ── Docker ───────────────────────────────────────────────────
+.docker/
+docker-compose.override.yml
+
+# ── Backups ──────────────────────────────────────────────────
+backups/
+*.bak
+*.backup
+
+# ── Misc ─────────────────────────────────────────────────────
+.cache/
+.tmp/
+*.tgz

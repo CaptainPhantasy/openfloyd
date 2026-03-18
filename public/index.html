@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OPEN-FLOYD Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] } } }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --card-bg:#1e1e2e;--card-border:#313244;--card-height:140px;
+      --card-shadow:0 4px 24px rgba(0,0,0,0.4);--card-radius:16px;
+      --accent:#89b4fa;--surface:#181825;--text:#cdd6f4;--text-dim:#6c7086;
+    }
+    body { background:var(--surface);color:var(--text);font-family:'Inter',system-ui,sans-serif;min-height:100vh; background-size:cover;background-position:center;background-attachment:fixed; }
+    body.has-bg::before { content:'';position:fixed;inset:0;background:inherit;filter:brightness(.3) blur(2px);z-index:-1; }
+    .card { background:var(--card-bg);border:1px solid var(--card-border);min-height:var(--card-height);box-shadow:var(--card-shadow);border-radius:var(--card-radius);transition:transform .2s,box-shadow .2s; }
+    .card:hover { transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5); }
+    .dot { width:10px;height:10px;border-radius:50%; }
+    .dot.active { animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(137,180,250,.5)} 50%{box-shadow:0 0 0 8px rgba(137,180,250,0)} }
+    .slide-in { animation:slideIn .3s ease-out; }
+    @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:none} }
+    .settings-panel { transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1); }
+    .settings-panel.open { transform:translateX(0); }
+    input[type=color]{-webkit-appearance:none;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;padding:2px}
+    input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+    input[type=color]::-webkit-color-swatch{border:none;border-radius:6px}
+    input[type=range]{accent-color:var(--accent)}
+    .badge{font-size:10px;padding:2px 8px;border-radius:9999px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+    .input{width:100%;padding:8px 12px;border-radius:10px;font-size:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:white;outline:none;transition:border-color .2s}
+    .input:focus{border-color:var(--accent)}
+    .select{appearance:none;width:100%;padding:8px 12px;border-radius:10px;font-size:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:white;outline:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236c7086' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+    .select:focus{border-color:var(--accent)}
+    .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);margin-bottom:12px}
+    .config-card{background:rgba(255,255,255,.02);border:1px solid var(--card-border);border-radius:14px;padding:20px;margin-bottom:16px}
+    .tab{padding:8px 20px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+    .tab.active{background:var(--accent);color:#11111b}
+    .tab:not(.active){color:var(--text-dim)}
+    .tab:not(.active):hover{background:rgba(255,255,255,.05)}
+    .key-input{font-family:monospace;letter-spacing:.5px}
+  </style>
+</head>
+<body class="dark">
+<div id="root"></div>
+<script type="module">
+import{h,render}from'https://esm.sh/preact@10.19.3';
+import{useState,useEffect,useCallback}from'https://esm.sh/preact@10.19.3/hooks';
+import htm from'https://esm.sh/htm@3.1.1';
+const html=htm.bind(h);
+
+const LLM_PROVIDERS=[
+  {id:'zai',name:'Z.ai',models:['glm-5-turbo','glm-4.7','glm-4-long'],baseUrl:'https://api.z.ai/api/paas/v4'},
+  {id:'opencode-zen',name:'OpenCode Zen',models:['zen-1','zen-1-mini'],baseUrl:'https://api.opencode.ai/v1'},
+  {id:'openrouter',name:'OpenRouter',models:['auto','anthropic/claude-3.5-sonnet','openai/gpt-4o','google/gemini-2.0-flash','meta-llama/llama-3.3-70b','mistralai/mixtral-8x22b'],baseUrl:'https://openrouter.ai/api/v1'},
+  {id:'openai',name:'OpenAI',models:['gpt-4o','gpt-4o-mini','gpt-4-turbo','o1','o1-mini','o3-mini'],baseUrl:'https://api.openai.com/v1'},
+  {id:'anthropic',name:'Anthropic',models:['claude-sonnet-4-20250514','claude-3-5-haiku-20241022','claude-3-opus-20240229'],baseUrl:'https://api.anthropic.com/v1'},
+  {id:'google',name:'Google AI',models:['gemini-2.0-flash','gemini-2.0-pro','gemini-1.5-pro'],baseUrl:'https://generativelanguage.googleapis.com/v1beta'},
+  {id:'mistral',name:'Mistral AI',models:['mistral-large-latest','mistral-medium-latest','codestral-latest','mistral-small-latest'],baseUrl:'https://api.mistral.ai/v1'},
+  {id:'groq',name:'Groq',models:['llama-3.3-70b-versatile','llama-3.1-8b-instant','mixtral-8x7b-32768','gemma2-9b-it'],baseUrl:'https://api.groq.com/openai/v1'},
+  {id:'together',name:'Together AI',models:['meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo','mistralai/Mixtral-8x22B-Instruct-v0.1','Qwen/Qwen2.5-72B-Instruct-Turbo'],baseUrl:'https://api.together.xyz/v1'},
+  {id:'fireworks',name:'Fireworks AI',models:['accounts/fireworks/models/llama-v3p1-405b-instruct','accounts/fireworks/models/mixtral-8x22b-instruct'],baseUrl:'https://api.fireworks.ai/inference/v1'},
+  {id:'perplexity',name:'Perplexity',models:['sonar-pro','sonar','sonar-reasoning'],baseUrl:'https://api.perplexity.ai'},
+  {id:'cohere',name:'Cohere',models:['command-r-plus','command-r','command-light'],baseUrl:'https://api.cohere.ai/v2'},
+  {id:'deepseek',name:'DeepSeek',models:['deepseek-chat','deepseek-reasoner'],baseUrl:'https://api.deepseek.com/v1'},
+  {id:'xai',name:'xAI',models:['grok-2','grok-2-mini'],baseUrl:'https://api.x.ai/v1'},
+];
+
+const CONTAINER_PROVIDERS=[
+  {id:'docker',name:'Docker',type:'local',icon:'🐳',desc:'Local Docker Engine'},
+  {id:'orbstack',name:'OrbStack',type:'local',icon:'🌀',desc:'Fast Docker & Linux on macOS'},
+  {id:'podman',name:'Podman',type:'local',icon:'🦭',desc:'Rootless container engine'},
+  {id:'colima',name:'Colima',type:'local',icon:'🖥️',desc:'Containers on macOS with minimal setup'},
+  {id:'digitalocean',name:'DigitalOcean',type:'cloud',icon:'🌊',desc:'App Platform & Droplets'},
+  {id:'aws',name:'AWS',type:'cloud',icon:'☁️',desc:'ECS / Fargate / EC2'},
+  {id:'gcp',name:'Google Cloud',type:'cloud',icon:'🔷',desc:'Cloud Run / GKE'},
+  {id:'azure',name:'Azure',type:'cloud',icon:'Ⓐ',desc:'Container Apps / ACI'},
+  {id:'flyio',name:'Fly.io',type:'cloud',icon:'🪁',desc:'Deploy globally with Firecracker VMs'},
+  {id:'railway',name:'Railway',type:'cloud',icon:'🚂',desc:'Instant deploy from GitHub'},
+  {id:'render',name:'Render',type:'cloud',icon:'🎯',desc:'Managed containers & static sites'},
+  {id:'hetzner',name:'Hetzner',type:'cloud',icon:'🏗️',desc:'Affordable cloud servers in EU'},
+];
+
+const LOG_LEVELS=['trace','debug','info','warn','error','fatal'];
+const TIMEZONES=['UTC','America/New_York','America/Chicago','America/Denver','America/Los_Angeles','America/Indianapolis','Europe/London','Europe/Berlin','Europe/Paris','Asia/Tokyo','Asia/Shanghai','Asia/Kolkata','Australia/Sydney','Pacific/Auckland'];
+const MEMORY_STRATEGIES=['discard-all','sliding-window','summarize','hybrid'];
+
+const DEFAULT_SETTINGS={
+  backgroundImage:'',bannerImage:'',bannerHeight:200,
+  cardBg:'#1e1e2e',cardBorder:'#313244',cardHeight:140,cardShadowDepth:4,cardRadius:16,accentColor:'#89b4fa',
+  agents:[
+    {id:'orchestrator',name:'Floyd',icon:'🤖',avatar:''},
+    {id:'llm',name:'GLM-5 Turbo',icon:'🧠',avatar:''},
+    {id:'whatsapp',name:'WhatsApp Bridge',icon:'💬',avatar:''},
+    {id:'executor',name:'Sandbox',icon:'📦',avatar:''},
+    {id:'memory',name:'Memory',icon:'🗃️',avatar:''},
+    {id:'cron',name:'Scheduler',icon:'⏰',avatar:''},
+  ],
+};
+
+const DEFAULT_CONFIG={
+  llm:{provider:'zai',model:'glm-5-turbo',apiKey:'',fallbackProvider:'',fallbackModel:'',temperature:1.0,maxTokens:4096,contextWindow:200000,thinkingEnabled:true,streamEnabled:false},
+  container:{provider:'docker',cloudProvider:'',cloudApiKey:'',cloudRegion:'us-east-1',sandboxTimeout:5000,sandboxMemoryMB:256},
+  whatsapp:{enabled:false,allowedNumbers:'',autoReply:false,rateLimit:5,rateWindow:60,messageMaxLength:4096},
+  memory:{sqlitePath:'/app/workspace/memory.db',redisUrl:'',strategy:'sliding-window',retentionLimit:150000,embeddingDimensions:1536,consolidationInterval:60,maxEntries:10000,minImportance:0.2},
+  system:{logLevel:'info',port:3000,environment:'development',timezone:'UTC',enableHealthCheck:true,enableMetrics:true},
+  security:{sandboxReadOnly:true,auditLogging:true,allowedHosts:'',maxConcurrentTasks:10,rateLimitGlobal:100},
+  scheduling:{defaultRetries:3,defaultTimeout:30000,cronTimezone:'UTC'},
+};
+
+function load(key,def){try{const s=localStorage.getItem(key);return s?{...def,...JSON.parse(s)}:def}catch{return def}}
+function save(key,v){localStorage.setItem(key,JSON.stringify(v))}
+function applyCss(s){
+  const r=document.documentElement.style;
+  r.setProperty('--card-bg',s.cardBg);r.setProperty('--card-border',s.cardBorder);
+  r.setProperty('--card-height',s.cardHeight+'px');
+  r.setProperty('--card-shadow',`0 ${s.cardShadowDepth}px ${s.cardShadowDepth*6}px rgba(0,0,0,${.2+s.cardShadowDepth*.05})`);
+  r.setProperty('--card-radius',s.cardRadius+'px');r.setProperty('--accent',s.accentColor);
+  if(s.backgroundImage){document.body.style.backgroundImage=`url(${s.backgroundImage})`;document.body.classList.add('has-bg')}
+  else{document.body.style.backgroundImage='';document.body.classList.remove('has-bg')}
+}
+
+// ── Shared UI components ────────────────────────────────────
+
+function Field({label,children,hint}){
+  return html`<div class="mb-3"><label class="block text-xs font-medium mb-1.5 text-[var(--text-dim)]">${label}</label>${children}${hint?html`<p class="text-xs mt-1" style="color:var(--text-dim)">${hint}</p>`:null}</div>`;
+}
+
+function KeyInput({value,onChange,placeholder}){
+  const[show,setShow]=useState(false);
+  return html`<div class="relative"><input type=${show?'text':'password'} value=${value} oninput=${e=>onChange(e.target.value)} placeholder=${placeholder||'sk-...'} class="input key-input pr-10" /><button type="button" onclick=${()=>setShow(!show)} class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-1.5 py-0.5 rounded hover:bg-white/10" style="color:var(--text-dim)">${show?'hide':'show'}</button></div>`;
+}
+
+function Select({value,onChange,options}){
+  return html`<select value=${value} onchange=${e=>onChange(e.target.value)} class="select">${options.map(o=>typeof o==='string'?html`<option key=${o} value=${o}>${o}</option>`:html`<option key=${o.value} value=${o.value}>${o.label}</option>`)}</select>`;
+}
+
+// ── Header ──────────────────────────────────────────────────
+
+function Header({settings,page,setPage,onOpenTheme}){
+  return html`
+    <header>
+      ${settings.bannerImage?html`<div class="w-full overflow-hidden relative" style=${{height:settings.bannerHeight+'px'}}><img src=${settings.bannerImage} class="w-full h-full object-cover" /><div class="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--surface)]" /></div>`:html`<div class="h-1.5 w-full" style=${{background:`linear-gradient(90deg,${settings.accentColor},#cba6f7,#fab387)`}} />`}
+      <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between ${settings.bannerImage?'-mt-14 relative z-10':''}">
+        <div class="flex items-center gap-4">
+          <div class="text-2xl font-800 tracking-tight"><span style=${{color:settings.accentColor}}>OPEN</span><span class="text-white">-FLOYD</span></div>
+          <span class="badge" style=${{background:settings.accentColor+'22',color:settings.accentColor}}>v0.1.0</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button onclick=${()=>setPage('dashboard')} class="tab ${page==='dashboard'?'active':''}">Dashboard</button>
+          <button onclick=${()=>setPage('config')} class="tab ${page==='config'?'active':''}">Configuration</button>
+          <button onclick=${onOpenTheme} class="ml-2 p-2 rounded-xl hover:bg-white/10 transition-colors" title="Theme">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>`;
+}
+
+// ── Dashboard Page ──────────────────────────────────────────
+
+function MetricCard({label,value,sub,color,agent}){
+  const icon=agent?.avatar?html`<img src=${agent.avatar} class="w-10 h-10 rounded-full object-cover" />`:html`<span class="text-2xl">${agent?.icon||'📊'}</span>`;
+  return html`<div class="card p-5 flex flex-col justify-between"><div class="flex items-center justify-between"><div class="flex items-center gap-3">${icon}<span class="text-sm font-medium" style="color:var(--text-dim)">${agent?.name||label}</span></div>${sub?html`<span class="badge" style=${{background:(color||'var(--accent)')+'22',color:color||'var(--accent)'}}>${sub}</span>`:null}</div><div class="text-3xl font-700 mt-2" style=${{color:color||'var(--accent)'}}>${value}</div></div>`;
+}
+
+function StateMachine({state}){
+  const states=['idle','processing','executing','awaiting_input','error','maintenance'];
+  const colors={idle:'#a6e3a1',processing:'#89b4fa',executing:'#fab387',awaiting_input:'#f9e2af',error:'#f38ba8',maintenance:'#cba6f7'};
+  return html`<div class="card p-5" style="min-height:220px"><h3 class="section-title">STATE MACHINE</h3><div class="space-y-2.5">${states.map(s=>html`<div class="flex items-center gap-3" key=${s}><div class="dot ${s===state?'active':''}" style=${{background:s===state?colors[s]:'#45475a'}} /><span class="text-sm font-mono ${s===state?'font-semibold':''}" style=${{color:s===state?colors[s]:'var(--text-dim)'}}>${s.toUpperCase()}</span>${s===state?html`<span class="text-xs ml-auto" style=${{color:colors[s]}}>current</span>`:null}</div>`)}</div></div>`;
+}
+
+function EventLog({events}){
+  return html`<div class="card p-5" style="min-height:220px"><h3 class="section-title">EVENT LOG</h3><div class="space-y-1.5 max-h-64 overflow-y-auto">${events.length===0?html`<p class="text-sm" style="color:var(--text-dim)">Waiting for activity...</p>`:events.map((e,i)=>html`<div key=${i} class="slide-in flex items-center gap-3 py-1.5 border-b" style="border-color:var(--card-border)"><span class="text-xs font-mono w-16 shrink-0" style="color:var(--text-dim)">${e.time}</span><span class="badge" style=${{background:e.color+'22',color:e.color}}>${e.type}</span><span class="text-sm truncate">${e.message}</span></div>`)}</div></div>`;
+}
+
+function DashboardPage({settings,stats,events}){
+  const am={};for(const a of settings.agents)am[a.id]=a;
+  const s=stats||{};const el=s.eventLoop||{};const llm=s.llm||{};
+  const state=s.state||'idle';const up=s.uptime||0;
+  const upStr=up>3600?Math.floor(up/3600)+'h '+Math.floor((up%3600)/60)+'m':up>60?Math.floor(up/60)+'m '+Math.floor(up%60)+'s':Math.floor(up)+'s';
+  const evts=events.length?events:[{time:'--:--',type:'SYSTEM',color:'#6c7086',message:'Waiting for first event...'}];
+  return html`
+    <div class="flex items-center gap-4 mb-6 text-sm" style="color:var(--text-dim)">
+      <div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style=${{background:stats?'#a6e3a1':'#f38ba8'}} /><span>${stats?'Connected':'Connecting...'}</span></div>
+      <span>|</span><span>Uptime: ${upStr}</span><span>|</span><span>Events: ${el.processed||0} processed, ${el.failed||0} failed</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <${MetricCard} label="State" value=${state.toUpperCase()} sub="active" color="#a6e3a1" agent=${am.orchestrator} />
+      <${MetricCard} label="Events" value=${el.processed||0} sub=${(el.failed||0)>0?(el.failed)+' failed':'healthy'} color=${(el.failed||0)>0?'#f38ba8':'#89b4fa'} agent=${am.cron} />
+      <${MetricCard} label="Tokens" value=${((llm.totalInputTokens||0)+(llm.totalOutputTokens||0)).toLocaleString()} sub=${'$'+((llm.totalInputTokens||0)/1e6*0.96+(llm.totalOutputTokens||0)/1e6*3.2).toFixed(3)} color="#fab387" agent=${am.llm} />
+      <${MetricCard} label="Memory" value=${s.memory?.entries||0} sub="entries" color="#cba6f7" agent=${am.memory} />
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6"><${StateMachine} state=${state} /><div class="lg:col-span-2"><${EventLog} events=${evts} /></div></div>
+    <h3 class="section-title">Agents</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${settings.agents.map(a=>html`<div key=${a.id} class="card p-5 flex items-center gap-4">${a.avatar?html`<img src=${a.avatar} class="w-12 h-12 rounded-full object-cover" />`:html`<div class="w-12 h-12 rounded-full flex items-center justify-center text-2xl" style="background:rgba(255,255,255,.05)">${a.icon}</div>`}<div><div class="font-semibold">${a.name}</div><div class="text-xs" style="color:var(--text-dim)">${a.id}</div></div><div class="ml-auto"><div class="w-2.5 h-2.5 rounded-full" style="background:#a6e3a1" /></div></div>`)}</div>
+  `;
+}
+
+// ── Configuration Page ──────────────────────────────────────
+
+function ConfigPage({config,onChange}){
+  const u=(section,key,val)=>{const next={...config,[section]:{...config[section],[key]:val}};onChange(next)};
+  const provider=LLM_PROVIDERS.find(p=>p.id===config.llm.provider)||LLM_PROVIDERS[0];
+  const fbProvider=LLM_PROVIDERS.find(p=>p.id===config.llm.fallbackProvider);
+  const localContainers=CONTAINER_PROVIDERS.filter(c=>c.type==='local');
+  const cloudContainers=CONTAINER_PROVIDERS.filter(c=>c.type==='cloud');
+
+  return html`
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- LLM Provider -->
+      <div class="config-card lg:col-span-2">
+        <h3 class="section-title flex items-center gap-2">🧠 LLM Provider</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <${Field} label="Primary Provider">
+            <${Select} value=${config.llm.provider} onChange=${v=>u('llm','provider',v)} options=${LLM_PROVIDERS.map(p=>({value:p.id,label:p.name}))} />
+          <//>
+          <${Field} label="Model">
+            <${Select} value=${config.llm.model} onChange=${v=>u('llm','model',v)} options=${provider.models} />
+          <//>
+          <${Field} label="API Key" hint="Stored locally in your browser only">
+            <${KeyInput} value=${config.llm.apiKey} onChange=${v=>u('llm','apiKey',v)} placeholder=${provider.id==='openai'?'sk-...':provider.id==='anthropic'?'sk-ant-...':'your-api-key'} />
+          <//>
+          <${Field} label="Fallback Provider">
+            <${Select} value=${config.llm.fallbackProvider} onChange=${v=>u('llm','fallbackProvider',v)} options=${[{value:'',label:'None'},...LLM_PROVIDERS.map(p=>({value:p.id,label:p.name}))]} />
+          <//>
+          <${Field} label="Fallback Model">
+            <${Select} value=${config.llm.fallbackModel} onChange=${v=>u('llm','fallbackModel',v)} options=${fbProvider?fbProvider.models:['—']} />
+          <//>
+          <${Field} label="Base URL" hint="Auto-populated from provider">
+            <input class="input key-input" value=${provider.baseUrl} readonly />
+          <//>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+          <${Field} label="Temperature: ${config.llm.temperature}">
+            <input type="range" min="0" max="2" step="0.1" value=${config.llm.temperature} oninput=${e=>u('llm','temperature',+e.target.value)} class="w-full" />
+          <//>
+          <${Field} label="Max Tokens">
+            <input type="number" class="input" value=${config.llm.maxTokens} oninput=${e=>u('llm','maxTokens',+e.target.value)} />
+          <//>
+          <${Field} label="Context Window">
+            <input type="number" class="input" value=${config.llm.contextWindow} oninput=${e=>u('llm','contextWindow',+e.target.value)} />
+          <//>
+          <${Field} label="Features">
+            <div class="flex flex-col gap-2 mt-1">
+              <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked=${config.llm.thinkingEnabled} onchange=${e=>u('llm','thinkingEnabled',e.target.checked)} /> Thinking</label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked=${config.llm.streamEnabled} onchange=${e=>u('llm','streamEnabled',e.target.checked)} /> Streaming</label>
+            </div>
+          <//>
+        </div>
+      </div>
+
+      <!-- Container Provider -->
+      <div class="config-card">
+        <h3 class="section-title flex items-center gap-2">📦 Container Provider</h3>
+        <${Field} label="Local Runtime">
+          <div class="grid grid-cols-2 gap-2">${localContainers.map(c=>html`
+            <button key=${c.id} onclick=${()=>u('container','provider',c.id)} class="flex items-center gap-2 p-3 rounded-xl text-left text-sm transition-all ${config.container.provider===c.id?'ring-2':'hover:bg-white/5'}" style=${{borderColor:config.container.provider===c.id?'var(--accent)':'transparent',background:config.container.provider===c.id?'var(--accent)'+'11':'rgba(255,255,255,.03)'}}>
+              <span class="text-lg">${c.icon}</span><div><div class="font-medium">${c.name}</div><div class="text-xs" style="color:var(--text-dim)">${c.desc}</div></div>
+            </button>`)}</div>
+        <//>
+        <${Field} label="Cloud Provider (optional)">
+          <${Select} value=${config.container.cloudProvider} onChange=${v=>u('container','cloudProvider',v)} options=${[{value:'',label:'None — Local Only'},...cloudContainers.map(c=>({value:c.id,label:c.icon+' '+c.name+' — '+c.desc}))]} />
+        <//>
+        ${config.container.cloudProvider?html`
+          <${Field} label="Cloud API Key / Token">
+            <${KeyInput} value=${config.container.cloudApiKey} onChange=${v=>u('container','cloudApiKey',v)} />
+          <//>
+          <${Field} label="Region">
+            <input class="input" value=${config.container.cloudRegion} oninput=${e=>u('container','cloudRegion',e.target.value)} />
+          <//>
+        `:null}
+        <div class="grid grid-cols-2 gap-4 mt-2">
+          <${Field} label="Sandbox Timeout (ms)"><input type="number" class="input" value=${config.container.sandboxTimeout} oninput=${e=>u('container','sandboxTimeout',+e.target.value)} /><//>
+          <${Field} label="Sandbox Memory (MB)"><input type="number" class="input" value=${config.container.sandboxMemoryMB} oninput=${e=>u('container','sandboxMemoryMB',+e.target.value)} /><//>
+        </div>
+      </div>
+
+      <!-- WhatsApp -->
+      <div class="config-card">
+        <h3 class="section-title flex items-center gap-2">💬 WhatsApp</h3>
+        <${Field} label="Enable WhatsApp Bridge">
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked=${config.whatsapp.enabled} onchange=${e=>u('whatsapp','enabled',e.target.checked)} /><span>${config.whatsapp.enabled?'Enabled':'Disabled'}</span></label>
+        <//>
+        <${Field} label="Allowed Numbers" hint="Comma-separated with country code: +18001234567">
+          <input class="input" value=${config.whatsapp.allowedNumbers} oninput=${e=>u('whatsapp','allowedNumbers',e.target.value)} placeholder="+18001234567, +44..." />
+        <//>
+        <div class="grid grid-cols-3 gap-4">
+          <${Field} label="Auto-Reply"><label class="flex items-center gap-2 text-sm cursor-pointer mt-1"><input type="checkbox" checked=${config.whatsapp.autoReply} onchange=${e=>u('whatsapp','autoReply',e.target.checked)} /> On</label><//>
+          <${Field} label="Rate Limit"><input type="number" class="input" value=${config.whatsapp.rateLimit} oninput=${e=>u('whatsapp','rateLimit',+e.target.value)} /><//>
+          <${Field} label="Window (sec)"><input type="number" class="input" value=${config.whatsapp.rateWindow} oninput=${e=>u('whatsapp','rateWindow',+e.target.value)} /><//>
+        </div>
+      </div>
+
+      <!-- Memory -->
+      <div class="config-card">
+        <h3 class="section-title flex items-center gap-2">🗃️ Memory & Persistence</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <${Field} label="SQLite Path"><input class="input key-input" value=${config.memory.sqlitePath} oninput=${e=>u('memory','sqlitePath',e.target.value)} /><//>
+          <${Field} label="Redis URL" hint="Leave blank to disable"><input class="input key-input" value=${config.memory.redisUrl} oninput=${e=>u('memory','redisUrl',e.target.value)} placeholder="redis://localhost:6379" /><//>
+          <${Field} label="Strategy"><${Select} value=${config.memory.strategy} onChange=${v=>u('memory','strategy',v)} options=${MEMORY_STRATEGIES} /><//>
+          <${Field} label="Embedding Dimensions"><input type="number" class="input" value=${config.memory.embeddingDimensions} oninput=${e=>u('memory','embeddingDimensions',+e.target.value)} /><//>
+          <${Field} label="Retention Limit (tokens)"><input type="number" class="input" value=${config.memory.retentionLimit} oninput=${e=>u('memory','retentionLimit',+e.target.value)} /><//>
+          <${Field} label="Max Entries"><input type="number" class="input" value=${config.memory.maxEntries} oninput=${e=>u('memory','maxEntries',+e.target.value)} /><//>
+          <${Field} label="Consolidation (min)"><input type="number" class="input" value=${config.memory.consolidationInterval} oninput=${e=>u('memory','consolidationInterval',+e.target.value)} /><//>
+          <${Field} label="Min Importance: ${config.memory.minImportance}"><input type="range" min="0" max="1" step="0.05" value=${config.memory.minImportance} oninput=${e=>u('memory','minImportance',+e.target.value)} class="w-full mt-2" /><//>
+        </div>
+      </div>
+
+      <!-- System -->
+      <div class="config-card">
+        <h3 class="section-title flex items-center gap-2">⚙️ System</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <${Field} label="Log Level"><${Select} value=${config.system.logLevel} onChange=${v=>u('system','logLevel',v)} options=${LOG_LEVELS} /><//>
+          <${Field} label="Port"><input type="number" class="input" value=${config.system.port} oninput=${e=>u('system','port',+e.target.value)} /><//>
+          <${Field} label="Environment"><${Select} value=${config.system.environment} onChange=${v=>u('system','environment',v)} options=${['development','staging','production']} /><//>
+          <${Field} label="Timezone"><${Select} value=${config.system.timezone} onChange=${v=>u('system','timezone',v)} options=${TIMEZONES} /><//>
+        </div>
+        <div class="flex gap-4 mt-3">
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked=${config.system.enableHealthCheck} onchange=${e=>u('system','enableHealthCheck',e.target.checked)} /> Health Endpoint</label>
+          <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked=${config.system.enableMetrics} onchange=${e=>u('system','enableMetrics',e.target.checked)} /> Metrics</label>
+        </div>
+      </div>
+
+      <!-- Security -->
+      <div class="config-card">
+        <h3 class="section-title flex items-center gap-2">🔒 Security</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <${Field} label="Sandbox Read-Only"><label class="flex items-center gap-2 text-sm cursor-pointer mt-1"><input type="checkbox" checked=${config.security.sandboxReadOnly} onchange=${e=>u('security','sandboxReadOnly',e.target.checked)} /> Enforce</label><//>
+          <${Field} label="Audit Logging"><label class="flex items-center gap-2 text-sm cursor-pointer mt-1"><input type="checkbox" checked=${config.security.auditLogging} onchange=${e=>u('security','auditLogging',e.target.checked)} /> Enable</label><//>
+          <${Field} label="Max Concurrent Tasks"><input type="number" class="input" value=${config.security.maxConcurrentTasks} oninput=${e=>u('security','maxConcurrentTasks',+e.target.value)} /><//>
+          <${Field} label="Global Rate Limit (req/min)"><input type="number" class="input" value=${config.security.rateLimitGlobal} oninput=${e=>u('security','rateLimitGlobal',+e.target.value)} /><//>
+        </div>
+        <${Field} label="Allowed Outbound Hosts" hint="Comma-separated. Empty = block all">
+          <input class="input" value=${config.security.allowedHosts} oninput=${e=>u('security','allowedHosts',e.target.value)} placeholder="api.z.ai, api.openai.com" />
+        <//>
+      </div>
+
+      <!-- Scheduling -->
+      <div class="config-card lg:col-span-2">
+        <h3 class="section-title flex items-center gap-2">⏰ Scheduling</h3>
+        <div class="grid grid-cols-3 gap-4">
+          <${Field} label="Default Retries"><input type="number" class="input" value=${config.scheduling.defaultRetries} oninput=${e=>u('scheduling','defaultRetries',+e.target.value)} /><//>
+          <${Field} label="Default Timeout (ms)"><input type="number" class="input" value=${config.scheduling.defaultTimeout} oninput=${e=>u('scheduling','defaultTimeout',+e.target.value)} /><//>
+          <${Field} label="CRON Timezone"><${Select} value=${config.scheduling.cronTimezone} onChange=${v=>u('scheduling','cronTimezone',v)} options=${TIMEZONES} /><//>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="lg:col-span-2 flex gap-3 justify-end">
+        <button onclick=${()=>onChange(DEFAULT_CONFIG)} class="px-5 py-2.5 rounded-xl text-sm font-semibold border border-white/10 hover:bg-white/5 transition-colors">Reset Defaults</button>
+        <button onclick=${()=>{save('floyd-config',config);alert('Configuration saved!')}} class="px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors" style=${{background:'var(--accent)',color:'#11111b'}}>Save Configuration</button>
+      </div>
+    </div>`;
+}
+
+// ── Theme Panel (visual customization) ──────────────────────
+
+function ThemePanel({settings,onChange,open,onClose}){
+  const u=(k,v)=>onChange({...settings,[k]:v});
+  const uAgent=(i,k,v)=>{const a=[...settings.agents];a[i]={...a[i],[k]:v};u('agents',a)};
+  return html`
+    <div class="settings-panel ${open?'open':''} fixed top-0 right-0 h-full w-96 z-50 overflow-y-auto" style="background:#11111b;border-left:1px solid var(--card-border)">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-6"><h2 class="text-lg font-700">Theme</h2><button onclick=${onClose} class="p-2 rounded-lg hover:bg-white/10">✕</button></div>
+        <section class="mb-6"><h3 class="section-title">Background</h3>
+          <${Field} label="Background Image URL"><input class="input" value=${settings.backgroundImage} oninput=${e=>u('backgroundImage',e.target.value)} placeholder="https://..." /><//>
+          <${Field} label="Banner Image URL"><input class="input" value=${settings.bannerImage} oninput=${e=>u('bannerImage',e.target.value)} placeholder="https://..." /><//>
+          <${Field} label="Banner Height: ${settings.bannerHeight}px"><input type="range" min="80" max="400" value=${settings.bannerHeight} oninput=${e=>u('bannerHeight',+e.target.value)} class="w-full" /><//>
+        </section>
+        <section class="mb-6"><h3 class="section-title">Cards</h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <${Field} label="Background"><div class="flex items-center gap-2"><input type="color" value=${settings.cardBg} oninput=${e=>u('cardBg',e.target.value)} /><span class="text-xs font-mono">${settings.cardBg}</span></div><//>
+            <${Field} label="Border"><div class="flex items-center gap-2"><input type="color" value=${settings.cardBorder} oninput=${e=>u('cardBorder',e.target.value)} /><span class="text-xs font-mono">${settings.cardBorder}</span></div><//>
+          </div>
+          <${Field} label="Accent"><div class="flex items-center gap-2"><input type="color" value=${settings.accentColor} oninput=${e=>u('accentColor',e.target.value)} /><span class="text-xs font-mono">${settings.accentColor}</span></div><//>
+          <${Field} label="Height: ${settings.cardHeight}px"><input type="range" min="80" max="300" value=${settings.cardHeight} oninput=${e=>u('cardHeight',+e.target.value)} class="w-full" /><//>
+          <${Field} label="Shadow Depth: ${settings.cardShadowDepth}"><input type="range" min="0" max="20" value=${settings.cardShadowDepth} oninput=${e=>u('cardShadowDepth',+e.target.value)} class="w-full" /><//>
+          <${Field} label="Border Radius: ${settings.cardRadius}px"><input type="range" min="0" max="32" value=${settings.cardRadius} oninput=${e=>u('cardRadius',+e.target.value)} class="w-full" /><//>
+        </section>
+        <section class="mb-6"><h3 class="section-title">Agents</h3>
+          ${settings.agents.map((a,i)=>html`<div key=${a.id} class="config-card !p-3 !mb-2"><div class="flex items-center gap-2 mb-2">${a.avatar?html`<img src=${a.avatar} class="w-7 h-7 rounded-full object-cover" />`:html`<span class="text-lg">${a.icon}</span>`}<span class="text-sm font-semibold">${a.name}</span><span class="text-xs ml-auto" style="color:var(--text-dim)">${a.id}</span></div><div class="grid grid-cols-2 gap-2"><input class="input !text-xs !py-1.5" value=${a.name} oninput=${e=>uAgent(i,'name',e.target.value)} placeholder="Name" /><input class="input !text-xs !py-1.5" value=${a.icon} oninput=${e=>uAgent(i,'icon',e.target.value)} placeholder="Emoji" /></div><input class="input !text-xs !py-1.5 mt-2" value=${a.avatar||''} oninput=${e=>uAgent(i,'avatar',e.target.value)} placeholder="Avatar image URL" /></div>`)}
+        </section>
+        <button onclick=${()=>onChange(DEFAULT_SETTINGS)} class="w-full py-2.5 rounded-xl text-sm font-semibold border border-white/10 hover:bg-white/5 transition-colors">Reset Theme</button>
+      </div>
+    </div>
+    ${open?html`<div class="fixed inset-0 bg-black/40 z-40" onclick=${onClose} />`:null}`;
+}
+
+// ── App ─────────────────────────────────────────────────────
+
+function App(){
+  const[page,setPage]=useState('dashboard');
+  const[settings,setSettings]=useState(()=>load('floyd-theme',DEFAULT_SETTINGS));
+  const[config,setConfig]=useState(()=>load('floyd-config',DEFAULT_CONFIG));
+  const[themeOpen,setThemeOpen]=useState(false);
+  const[stats,setStats]=useState(null);
+  const[events,setEvents]=useState([]);
+
+  const handleTheme=useCallback(next=>{setSettings(next);save('floyd-theme',next);applyCss(next)},[]);
+  const handleConfig=useCallback(next=>{setConfig(next);save('floyd-config',next)},[]);
+
+  useEffect(()=>{
+    applyCss(settings);
+    let active=true;
+    const poll=async()=>{try{const r=await fetch('/stats');if(r.ok){const d=await r.json();if(active)setStats(d)}}catch{};if(active)setTimeout(poll,2000)};
+    poll();return()=>{active=false};
+  },[]);
+
+  useEffect(()=>{
+    let es;try{es=new EventSource('/api/events');es.onmessage=e=>{try{setEvents(p=>[JSON.parse(e.data),...p].slice(0,50))}catch{}}}catch{};
+    return()=>es?.close();
+  },[]);
+
+  return html`
+    <${Header} settings=${settings} page=${page} setPage=${setPage} onOpenTheme=${()=>setThemeOpen(true)} />
+    <main class="max-w-7xl mx-auto px-6 pb-12">
+      ${page==='dashboard'?html`<${DashboardPage} settings=${settings} stats=${stats} events=${events} />`:null}
+      ${page==='config'?html`<${ConfigPage} config=${config} onChange=${handleConfig} />`:null}
+    </main>
+    <${ThemePanel} settings=${settings} onChange=${handleTheme} open=${themeOpen} onClose=${()=>setThemeOpen(false)} />`;
+}
+
+render(html`<${App} />`,document.getElementById('root'));
+</script>
+</body>
+</html>

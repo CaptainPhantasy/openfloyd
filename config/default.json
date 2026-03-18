@@ -1,0 +1,47 @@
+{
+  "system": {
+    "version": "0.1.0",
+    "logLevel": "info"
+  },
+  "models": {
+    "providers": {
+      "zai": {
+        "apiKey": "${ZAI_API_KEY}",
+        "baseUrl": "https://api.z.ai/api/paas/v4",
+        "models": [
+          {
+            "id": "glm-5-turbo",
+            "name": "GLM-5-Turbo",
+            "reasoning": true,
+            "input": ["text", "vision"],
+            "contextWindow": 204800,
+            "maxTokens": 131072,
+            "cost": {
+              "input": 0.96,
+              "output": 3.20
+            }
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "zai/glm-5-turbo",
+        "fallbacks": ["zai/glm-4.7"]
+      },
+      "memory": {
+        "strategy": "discard-all",
+        "retentionLimit": 150000
+      }
+    }
+  },
+  "integrations": {
+    "whatsapp": {
+      "enabled": false,
+      "allowedNumbers": [],
+      "autoReply": false
+    }
+  }
+}
