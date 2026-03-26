@@ -50,6 +50,7 @@ export enum EventSourceType {
   WEBHOOK = 'webhook',
   API = 'api',
   SYSTEM = 'system',
+  WEBCHAT = 'webchat',
 }
 
 export interface AgentEvent {
@@ -189,6 +190,7 @@ export interface MCPSchemaProperty {
   description?: string;
   enum?: string[];
   default?: unknown;
+  items?: MCPSchemaProperty | MCPSchemaProperty[];
 }
 
 export interface MCPToolResult {
@@ -328,4 +330,467 @@ export interface OrchestratorEvents {
   'task:started': (taskId: string) => void;
   'task:completed': (taskId: string, result: unknown) => void;
   'task:failed': (taskId: string, error: Error) => void;
+}
+
+// ============================================================
+// WebChat Types
+// ============================================================
+
+export interface WebChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  metadata?: {
+    type?: 'text' | 'code' | 'status' | 'error';
+    language?: string;
+    projectId?: string;
+    workerId?: string;
+  };
+}
+
+export interface WebSocketConnection {
+  id: string;
+  connectedAt: Date;
+  lastActivity: Date;
+  clientInfo?: {
+    userAgent: string;
+    ip: string;
+  };
+}
+
+// ============================================================
+// Worker Agent Types
+// ============================================================
+
+export enum WorkerType {
+  CODER = 'coder',
+  TESTER = 'tester',
+  REVIEWER = 'reviewer',
+  DEPLOYER = 'deployer',
+  RESEARCHER = 'researcher',
+  MARKETER = 'marketer',
+}
+
+export enum WorkerState {
+  SPAWNING = 'spawning',
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  WORKING = 'working',
+  BLOCKED = 'blocked',
+  COMPLETE = 'complete',
+  FAILED = 'failed',
+  TERMINATED = 'terminated',
+}
+
+export interface WorkerConfig {
+  type: WorkerType;
+  llm: {
+    provider: string;
+    model: string;
+    maxTokens: number;
+  };
+  tools: string[];
+  timeout: number;
+  memoryMB: number;
+}
+
+export interface WorkerTask {
+  id: string;
+  description: string;
+  context: string;
+  dependencies: string[];
+  priority: number;
+  deadline?: Date;
+  budget?: number;
+}
+
+export interface TaskProgress {
+  taskId: string;
+  state: 'pending' | 'running' | 'complete' | 'failed';
+  percentComplete: number;
+  currentStep: string;
+  output?: string;
+  error?: string;
+}
+
+export interface Heartbeat {
+  workerId: string;
+  timestamp: Date;
+  state: WorkerState;
+  taskProgress?: TaskProgress;
+  tokenUsage: TokenUsage;
+  memoryUsageMB: number;
+}
+
+export interface VMInstance {
+  id: string;
+  ip: string;
+  state: 'running' | 'stopped' | 'error';
+  createdAt: Date;
+  config: WorkerConfig;
+}
+
+export interface CommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+}
+
+export interface PoolStats {
+  totalWorkers: number;
+  byType: Record<string, number>;
+  byState: Record<string, number>;
+  totalTokens: number;
+  totalCost: number;
+}
+
+export enum TaskState {
+  PENDING = 'pending',
+  READY = 'ready',
+  RUNNING = 'running',
+  COMPLETE = 'complete',
+  FAILED = 'failed',
+}
+
+export interface QueueStats {
+  total: number;
+  pending: number;
+  ready: number;
+  running: number;
+  complete: number;
+  failed: number;
+}
+
+// ============================================================
+// LLM Router Types
+// ============================================================
+
+export enum TaskType {
+  PLANNING = 'planning',
+  CODING = 'coding',
+  TESTING = 'testing',
+  REVIEW = 'review',
+  RESEARCH = 'research',
+  MARKETING = 'marketing',
+  FAST = 'fast',
+}
+
+export interface LLMRequest {
+  taskType: TaskType;
+  messages: ChatMessage[];
+  maxTokens?: number;
+  temperature?: number;
+  tools?: MCPTool[];
+  priority?: number;
+  budget?: number;
+}
+
+export interface LLMResponse {
+  id: string;
+  content: string;
+  toolCalls?: ToolCall[];
+  usage: TokenUsage;
+  providerId: string;
+  model: string;
+  cost: number;
+}
+
+export interface RoutingRule {
+  taskType: TaskType;
+  primaryProvider: string;
+  primaryModel: string;
+  fallbackProvider?: string;
+  fallbackModel?: string;
+  maxConcurrent: number;
+}
+
+export interface LLMModelSpec {
+  id: string;
+  name: string;
+  contextWindow: number;
+  maxOutputTokens: number;
+  costPerInputToken: number;
+  costPerOutputToken: number;
+  capabilities: ('reasoning' | 'coding' | 'vision' | 'tools')[];
+}
+
+export interface RateLimitStatus {
+  remaining: number;
+  limit: number;
+  resetsAt: Date;
+}
+
+export interface ProviderRequest {
+  model: string;
+  messages: ChatMessage[];
+  maxTokens?: number;
+  temperature?: number;
+  tools?: MCPTool[];
+}
+
+export interface ProviderResponse {
+  id: string;
+  content: string;
+  toolCalls?: ToolCall[];
+  usage: TokenUsage;
+  finishReason: string;
+}
+
+export interface ProviderChunk {
+  content?: string;
+  toolCalls?: ToolCall[];
+  finishReason?: string;
+}
+
+export interface ConcurrencyStatus {
+  providerId: string;
+  limit: number;
+  active: number;
+  queued: number;
+}
+
+// ============================================================
+// Cost Tracking Types
+// ============================================================
+
+export interface UsageRecord {
+  id: string;
+  timestamp: Date;
+  providerId: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cost: number;
+  projectId?: string;
+  workerId?: string;
+  taskId?: string;
+}
+
+export interface Budget {
+  daily: number;
+  weekly?: number;
+  monthly?: number;
+  perProject?: number;
+  alertThresholds: number[];
+}
+
+export interface BudgetStatus {
+  daily: { used: number; limit: number; percentage: number };
+  weekly?: { used: number; limit: number; percentage: number };
+  monthly?: { used: number; limit: number; percentage: number };
+}
+
+export interface BudgetAlert {
+  type: 'daily' | 'weekly' | 'monthly' | 'project';
+  threshold: number;
+  used: number;
+  limit: number;
+}
+
+// ============================================================
+// ROI Types
+// ============================================================
+
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: Date;
+  status: 'planning' | 'building' | 'testing' | 'deployed' | 'archived';
+  totalCost: number;
+  totalRevenue: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ROIMetrics {
+  totalCost: number;
+  totalRevenue: number;
+  netProfit: number;
+  roi: number;
+  breakeven: Date | null;
+  daysToBreakeven: number | null;
+}
+
+// ============================================================
+// Planning Types
+// ============================================================
+
+export interface GoalAnalysis {
+  originalGoal: string;
+  clarifiedGoal: string;
+  requirements: string[];
+  constraints: string[];
+  assumptions: string[];
+  risks: Risk[];
+  researchFindings: ResearchFinding[];
+}
+
+export interface Risk {
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+  mitigation: string;
+}
+
+export interface ResearchFinding {
+  query: string;
+  summary: string;
+  sources: string[];
+  confidence: number;
+}
+
+export interface PlanStep {
+  id: string;
+  description: string;
+  workerType: WorkerType;
+  estimatedMinutes: number;
+  dependencies: string[];
+}
+
+export interface WorkerRequirement {
+  type: WorkerType;
+  count: number;
+  reason: string;
+}
+
+export interface CostEstimate {
+  tokens: number;
+  dollars: number;
+  breakdown: Record<string, number>;
+}
+
+export interface TimeEstimate {
+  minutes: number;
+  breakdown: Record<string, number>;
+}
+
+export interface ExecutionPath {
+  id: string;
+  name: string;
+  description: string;
+  steps: PlanStep[];
+  workerRequirements: WorkerRequirement[];
+  estimatedCost: CostEstimate;
+  estimatedTime: TimeEstimate;
+  risks: Risk[];
+  confidence: number;
+}
+
+export interface Plan {
+  id: string;
+  goal: string;
+  path: ExecutionPath;
+  tasks: WorkerTask[];
+  status: 'draft' | 'approved' | 'executing' | 'complete' | 'failed';
+  createdAt: Date;
+  approvedAt?: Date;
+  completedAt?: Date;
+  /** Existing repo URL — worker pushes branches here. Undefined = new project, needs owner approval to create. */
+  repoUrl?: string;
+  /** If true, owner has approved creation of a new repo for this plan. */
+  newRepoApproved?: boolean;
+}
+
+// ============================================================
+// Brand Voice Types
+// ============================================================
+
+export interface Brand {
+  id: string;
+  name: string;
+  voice: {
+    tone: string;
+    vocabulary: string;
+    style: string;
+    examples?: string[];
+    avoidWords?: string[];
+    preferredPhrases?: string[];
+  };
+  colors?: {
+    primary: string;
+    secondary: string;
+    accent: string;
+  };
+  logo?: string;
+}
+
+export interface VoiceValidation {
+  isValid: boolean;
+  score: number;
+  issues: { type: string; description: string; suggestion: string }[];
+}
+
+// ============================================================
+// Web Research Types
+// ============================================================
+
+export interface SearchOptions {
+  maxResults?: number;
+  recency?: 'day' | 'week' | 'month' | 'year';
+  domains?: string[];
+  excludeDomains?: string[];
+}
+
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedDate?: Date;
+  score: number;
+}
+
+export interface PageContent {
+  url: string;
+  title: string;
+  content: string;
+  author?: string;
+  publishedDate?: Date;
+  extractedAt: Date;
+}
+
+export interface VerificationResult {
+  claim: string;
+  verified: boolean;
+  confidence: number;
+  sources: { url: string; supports: boolean; excerpt: string }[];
+}
+
+// ============================================================
+// Dashboard API Types
+// ============================================================
+
+export interface ProjectStatus {
+  id: string;
+  name: string;
+  description: string;
+  status: 'planning' | 'approved' | 'building' | 'testing' | 'complete' | 'failed';
+  progress: number;
+  workers: number;
+  cost: number;
+  startedAt: Date;
+  estimatedCompletion?: Date;
+}
+
+export interface WorkerStatus {
+  id: string;
+  type: WorkerType;
+  state: WorkerState;
+  currentTask?: string;
+  progress: number;
+  lastHeartbeat: Date;
+  health: 'healthy' | 'stale' | 'dead';
+  tokenUsage: number;
+  cost: number;
+}
+
+export interface CostBreakdown {
+  total: number;
+  byProvider: Record<string, number>;
+  byProject: Record<string, number>;
+  byWorker: Record<string, number>;
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  budget: { daily: number; remaining: number };
 }

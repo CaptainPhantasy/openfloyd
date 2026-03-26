@@ -13,7 +13,7 @@ Syntax follows standard Unix CRON formatting.
 1. Read my calendar for the day.
 2. Scrape the top 5 articles from Hacker News and summarize them.
 3. Check the weather API for my local area.
-4. Compile this into a single WhatsApp message and send it to me.
+4. Compile this into a single WebChat message and send it to me.
 
 ---
 

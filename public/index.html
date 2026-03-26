@@ -460,17 +460,17 @@
         <!-- Collapsible File Editor Drawer -->
         <div class="glass-card editor-drawer collapsed" id="fileEditorCard">
           <!-- Header (Always visible, acts as toggle) -->
-          <div class="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-white/5 transition-colors group" onclick="toggleEditor()">
-            <div class="flex items-center gap-4">
-              <div class="p-1.5 rounded-md bg-white/5 group-hover:bg-brand-500/20 group-hover:text-brand-400 transition-colors">
+          <div class="flex flex-wrap sm:flex-nowrap items-center justify-between gap-4 px-4 sm:px-6 py-4 cursor-pointer hover:bg-white/5 transition-colors group" onclick="toggleEditor()">
+            <div class="flex items-center gap-3 sm:gap-4 flex-1">
+              <div class="p-1.5 rounded-md bg-white/5 group-hover:bg-brand-500/20 group-hover:text-brand-400 transition-colors shrink-0">
                 <svg id="editorChevron" class="w-4 h-4 transition-transform duration-400 ease-in-out" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              <h2 class="text-sm font-bold tracking-wide">Workspace Editor</h2>
-              <span class="badge" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2)">Root Access</span>
+              <h2 class="text-sm font-bold tracking-wide truncate">Workspace Editor</h2>
+              <span class="badge shrink-0" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.2)">Root Access</span>
             </div>
-            <div class="flex items-center gap-3">
-              <span id="fileSaveStatus" class="text-xs font-mono font-medium"></span>
-              <button onclick="saveFile(event)" id="fileSaveBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold hidden shadow-lg shadow-brand-500/20 active:scale-95 transition-all" style="background:var(--accent);color:var(--bg)">Save Changes</button>
+            <div class="flex items-center justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+              <span id="fileSaveStatus" class="text-xs font-mono font-medium truncate max-w-[150px]"></span>
+              <button onclick="saveFile(event)" id="fileSaveBtn" class="px-4 py-1.5 rounded-lg text-xs font-bold hidden shadow-lg shadow-brand-500/20 active:scale-95 transition-all shrink-0 whitespace-nowrap" style="background:var(--accent);color:var(--bg)">Save Changes</button>
             </div>
           </div>
           

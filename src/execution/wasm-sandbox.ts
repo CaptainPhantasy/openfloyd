@@ -103,6 +103,7 @@ export class WasmSandbox {
     return mod.default;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async getLanguageRuntime(language: string): Promise<string | Uint8Array> {
     const runtimePaths: Record<string, string> = {
       javascript: './runtime/javascript-env.wasm',

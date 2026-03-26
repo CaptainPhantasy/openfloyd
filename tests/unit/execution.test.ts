@@ -115,7 +115,7 @@ describe('ToolRegistry', () => {
       expect(registry.hasTool('web_search')).toBe(true);
       expect(registry.hasTool('web_reader')).toBe(true);
       expect(registry.hasTool('execute_code')).toBe(true);
-      expect(registry.getDefinitions()).toHaveLength(3);
+      expect(registry.getDefinitions()).toHaveLength(36);
     });
   });
 });

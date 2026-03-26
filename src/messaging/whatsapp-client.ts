@@ -58,6 +58,7 @@ export class WhatsAppEventSource implements EventSource {
     await this.connect();
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async stop(): Promise<void> {
     this.shutdownRequested = true;
     this.messageQueue.stop();
@@ -73,6 +74,7 @@ export class WhatsAppEventSource implements EventSource {
     this.eventHandler = handler;
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async sendMessage(recipient: string, content: string): Promise<string[]> {
     return this.messageQueue.enqueue(recipient, content);
   }
@@ -113,10 +115,22 @@ export class WhatsAppEventSource implements EventSource {
       });
 
       this.socket.ev.on('connection.update', (update: unknown) => {
-        const { connection, lastDisconnect } = update as {
+        const { connection, lastDisconnect, qr } = update as {
           connection?: string;
           lastDisconnect?: { error?: { output?: { statusCode?: number } } };
+          qr?: string;
         };
+
+        if (qr) {
+          log.info('========================================');
+          log.info('SCAN THIS QR CODE WITH WHATSAPP:');
+          log.info('========================================');
+          const qrLines = qr.match(/.{1,50}/g) ?? [qr];
+          for (const line of qrLines) {
+            log.info(line);
+          }
+          log.info('========================================');
+        }
 
         if (connection === 'close') {
           this.connected = false;

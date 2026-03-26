@@ -6,7 +6,7 @@ import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('markdown-parser');
 
-const CRON_REGEX = /^(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)\s+(\*|[0-9,\-\/]+)$/;
+const CRON_REGEX = /^(\*|[0-9,\-/]+)\s+(\*|[0-9,\-/]+)\s+(\*|[0-9,\-/]+)\s+(\*|[0-9,\-/]+)\s+(\*|[0-9,\-/]+)$/;
 const SCHEDULE_PREFIX = /^\*\*Schedule:\*\*\s*/i;
 const ACTION_PREFIX = /^\*\*Action:\*\*\s*/i;
 

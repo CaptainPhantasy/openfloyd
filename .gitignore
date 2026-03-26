@@ -6,6 +6,8 @@
 .env
 .env.*
 !.env.example
+.floyd/.supercache
+.floyd/secrets.*
 *.pem
 *.key
 *.cert

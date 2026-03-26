@@ -65,7 +65,7 @@ const validateModelsSection: ValidatorFn = (value, path) => {
   errors.push(...requiredField(value, 'providers', path));
 
   if (isObject(value['providers'])) {
-    for (const [providerName, providerConfig] of Object.entries(value['providers'] as Record<string, unknown>)) {
+    for (const [providerName, providerConfig] of Object.entries(value['providers'])) {
       if (!isObject(providerConfig)) {
         errors.push(new ValidationError('Provider must be an object', `${path}.providers.${providerName}`, 'object', typeof providerConfig));
         continue;

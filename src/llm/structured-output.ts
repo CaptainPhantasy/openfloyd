@@ -64,7 +64,7 @@ export function parseStructuredResponse(response: ChatResponse): StructuredRespo
   if (jsonMatch) {
     const jsonStr = jsonMatch[1] ?? jsonMatch[0];
     try {
-      const parsed = JSON.parse(jsonStr!) as Record<string, unknown>;
+      const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
       return validateStructuredOutput(parsed, content);
     } catch {
       log.debug({ content: content.substring(0, 200) }, 'Failed to parse JSON from response');

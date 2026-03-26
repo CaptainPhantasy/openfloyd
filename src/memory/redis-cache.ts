@@ -22,7 +22,8 @@ export class RedisCache {
     this.prefix = config.prefix ?? 'floyd:';
     this.defaultTTL = config.defaultTTL ?? DEFAULT_TTL;
 
-    this.client.on('error', (err) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    this.client.on('error', (err: unknown) => {
       log.error({ err }, 'Redis connection error');
     });
 

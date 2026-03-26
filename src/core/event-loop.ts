@@ -64,6 +64,7 @@ class PriorityEventQueue {
 
   private sinkDown(index: number): void {
     const length = this.heap.length;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       let smallest = index;
       const left = 2 * index + 1;

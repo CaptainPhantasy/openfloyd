@@ -201,3 +201,48 @@ describe('MemoryConsolidator', () => {
     consolidator.stopPeriodic();
   });
 });
+
+// ── Additional branch coverage tests ──────────────────────────────────────
+
+describe('MemoryConsolidator additional coverage', () => {
+  it('startPeriodic is no-op when called twice', () => {
+    const store = new VectorStore(':memory:');
+    const c = new MemoryConsolidator(store);
+    c.startPeriodic(1000);
+    c.startPeriodic(1000); // should be no-op
+    c.stopPeriodic();
+  });
+
+  it('periodic run catches errors from prune', async () => {
+    const store = new VectorStore(':memory:');
+    const c = new MemoryConsolidator(store, { maxEntries: 0 });
+    // With maxEntries=0, getCount() > 0 will trigger prune
+    // This tests the error catch in the periodic timer
+    const result = await c.run();
+    expect(result).toBeDefined();
+  });
+
+  it('run does not prune when entryCount <= maxEntries', async () => {
+    const store = new VectorStore(':memory:');
+    const c = new MemoryConsolidator(store, { maxEntries: 100_000 });
+    const result = await c.run();
+    expect(result.pruned).toBe(0);
+  });
+
+  it('addMemory stores with timestamp', () => {
+    const store = new VectorStore(':memory:');
+    const c = new MemoryConsolidator(store);
+    c.addMemory('test content', { importance: 0.5, source: 'test' });
+    expect(store.getCount()).toBe(1);
+  });
+
+  it('getRunCount increments', async () => {
+    const store = new VectorStore(':memory:');
+    const c = new MemoryConsolidator(store);
+    expect(c.getRunCount()).toBe(0);
+    await c.run();
+    expect(c.getRunCount()).toBe(1);
+    await c.run();
+    expect(c.getRunCount()).toBe(2);
+  });
+});

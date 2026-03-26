@@ -153,3 +153,163 @@ describe('AuthorizationManager', () => {
     });
   });
 });
+
+import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+jest.mock('@whiskeysockets/baileys', () => ({
+  useMultiFileAuthState: jest.fn().mockResolvedValue({
+    state: { creds: {} },
+    saveCreds: jest.fn(),
+  }),
+}));
+
+import { WhatsAppAuthManager } from '../../src/messaging/auth-manager.js';
+
+describe('WhatsAppAuthManager', () => {
+  let tempDirs: string[];
+
+  beforeEach(() => {
+    tempDirs = [];
+  });
+
+  afterEach(async () => {
+    for (const dir of tempDirs) {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  async function makeTempDir(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'wa-auth-test-'));
+    tempDirs.push(dir);
+    return dir;
+  }
+
+  describe('constructor', () => {
+    it('resolves relative path to absolute', () => {
+      const manager = new WhatsAppAuthManager({ authPath: './some-relative-path' });
+      const result = manager.getAuthPath();
+      expect(result).toBe(resolve('./some-relative-path'));
+    });
+  });
+
+  describe('getAuthPath', () => {
+    it('returns absolute path', async () => {
+      const dir = await makeTempDir();
+      const manager = new WhatsAppAuthManager({ authPath: dir });
+      expect(manager.getAuthPath()).toBe(dir);
+      expect(manager.getAuthPath()).toMatch(/^\//);
+    });
+  });
+
+  describe('ensureAuthDirectory', () => {
+    it('creates directory if it does not exist', async () => {
+      const base = await makeTempDir();
+      const authDir = join(base, 'new-auth-dir');
+      const manager = new WhatsAppAuthManager({ authPath: authDir });
+
+      await manager.ensureAuthDirectory();
+
+      // Verify directory was created by trying to access it
+      const { access, constants } = await import('node:fs/promises');
+      await expect(access(authDir, constants.F_OK)).resolves.toBeUndefined();
+    });
+
+    it('does not throw if directory already exists', async () => {
+      const dir = await makeTempDir();
+      const manager = new WhatsAppAuthManager({ authPath: dir });
+
+      await expect(manager.ensureAuthDirectory()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('loadAuthState', () => {
+    it('calls useMultiFileAuthState with resolved path', async () => {
+      const dir = await makeTempDir();
+      const manager = new WhatsAppAuthManager({ authPath: dir });
+
+      const result = await manager.loadAuthState();
+
+      // Mocked baileys returns { state: { creds: {} }, saveCreds: jest.fn() }
+      expect(result).toBeDefined();
+      expect(result.state).toBeDefined();
+      expect(result.saveCreds).toBeDefined();
+    });
+  });
+});
+
+// ── Additional branch coverage tests ──────────────────────────────────────
+
+describe('MessageQueue additional coverage', () => {
+  it('start processes queued messages after stop', async () => {
+    const mq = new MessageQueue();
+    let sent = 0;
+    mq.setSendFunction(async () => { sent++; });
+    mq.stop();
+    mq.enqueue('123', 'hello');
+    expect(mq.size).toBe(1);
+    mq.start();
+    // Give it time to process
+    await new Promise((r) => setTimeout(r, 100));
+    expect(sent).toBe(1);
+    expect(mq.size).toBe(0);
+  });
+
+  it('requeues message on send failure', async () => {
+    jest.useFakeTimers();
+    const mq = new MessageQueue({ rateLimit: 100 });
+    let attempts = 0;
+    mq.setSendFunction(async () => {
+      attempts++;
+      if (attempts <= 2) throw new Error('transient');
+    });
+    mq.enqueue('123', 'retry me', 3);
+    await jest.advanceTimersByTimeAsync(6000);
+    expect(attempts).toBeGreaterThanOrEqual(2);
+    jest.useRealTimers();
+  });
+
+  it('drops message after max retries', async () => {
+    jest.useFakeTimers();
+    const mq = new MessageQueue({ rateLimit: 100 });
+    mq.setSendFunction(async () => {
+      throw new Error('permanent');
+    });
+    mq.enqueue('123', 'will fail', 2);
+    await jest.advanceTimersByTimeAsync(20000);
+    expect(mq.stats.failed).toBeGreaterThan(0);
+    expect(mq.stats.dropped).toBeGreaterThan(0);
+    jest.useRealTimers();
+  });
+
+  it('splitMessage handles very long lines', () => {
+    const mq = new MessageQueue();
+    const longLine = 'x'.repeat(5000);
+    const chunks = mq.splitMessage(longLine);
+    expect(chunks.length).toBe(2);
+    expect(chunks[0]!.length).toBe(4096);
+    expect(chunks[1]!.length).toBe(5000 - 4096);
+  });
+
+  it('splitMessage handles multiline content near boundary', () => {
+    const mq = new MessageQueue();
+    const lines = [];
+    for (let i = 0; i < 100; i++) lines.push(`line ${i} content here`);
+    const content = lines.join('\n');
+    const chunks = mq.splitMessage(content);
+    // Should split into at least 1 chunk
+    expect(chunks.length).toBeGreaterThanOrEqual(1);
+    // Reassembled content should match (minus trailing whitespace)
+    expect(chunks.join('').trim()).toBe(content.trim());
+  });
+
+  it('clear removes all queued messages', () => {
+    const mq = new MessageQueue();
+    mq.stop();
+    mq.enqueue('123', 'a');
+    mq.enqueue('123', 'b');
+    expect(mq.size).toBe(2);
+    mq.clear();
+    expect(mq.size).toBe(0);
+  });
+});

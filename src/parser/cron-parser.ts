@@ -43,7 +43,7 @@ export class CronScheduler {
       block.schedule,
       () => {
         log.info({ blockId: block.id, title: block.title }, 'CRON job fired');
-        void Promise.resolve(handler(block)).catch((error) => {
+        void Promise.resolve(handler(block)).catch((error: unknown) => {
           log.error({ err: error, blockId: block.id }, 'CRON job handler failed');
         });
       },

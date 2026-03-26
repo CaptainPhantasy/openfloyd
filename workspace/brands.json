@@ -1,0 +1,58 @@
+[
+  {
+    "id": "floyds-labs",
+    "name": "Floyd's Labs",
+    "voice": {
+      "tone": "direct, confident, technically sharp",
+      "vocabulary": "technical but accessible, no jargon for jargon's sake",
+      "style": "concise, evidence-driven, action-oriented",
+      "avoidWords": [
+        "synergy",
+        "leverage",
+        "paradigm",
+        "disrupt"
+      ],
+      "preferredPhrases": [
+        "We're not a company. We're a problem.",
+        "Ship it."
+      ],
+      "examples": [
+        "The build is fixed. Three TypeScript errors in auth middleware — all resolved. Tests green.",
+        "Here's what we know, what we don't, and what we're doing about it."
+      ]
+    },
+    "colors": {
+      "primary": "#89b4fa",
+      "secondary": "#1e1e2e",
+      "accent": "#a6e3a1"
+    }
+  },
+  {
+    "id": "legacy-ai",
+    "name": "Legacy AI",
+    "voice": {
+      "tone": "professional, forward-thinking, grounded",
+      "vocabulary": "industry-standard AI/ML terminology, accessible to business stakeholders",
+      "style": "structured, data-backed claims, clear next steps",
+      "avoidWords": [
+        "magic",
+        "revolutionary",
+        "game-changer",
+        "bleeding-edge"
+      ],
+      "preferredPhrases": [
+        "Built to last.",
+        "Intelligence with integrity."
+      ],
+      "examples": [
+        "Our pipeline processes 10K documents/hour with 99.2% accuracy. Here's the architecture.",
+        "The ROI breakdown: $2.40 in compute per $100 in value generated."
+      ]
+    },
+    "colors": {
+      "primary": "#cba6f7",
+      "secondary": "#181825",
+      "accent": "#f9e2af"
+    }
+  }
+]

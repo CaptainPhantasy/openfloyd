@@ -40,7 +40,7 @@ interface TransitionRecord {
 class StateMachineEmitter {
   private emitter = new EventEmitter();
 
-  on<K extends keyof StateMachineEvents & string>(
+  on<K extends keyof StateMachineEvents>(
     event: K,
     listener: StateMachineEvents[K],
   ): this {
@@ -48,7 +48,7 @@ class StateMachineEmitter {
     return this;
   }
 
-  off<K extends keyof StateMachineEvents & string>(
+  off<K extends keyof StateMachineEvents>(
     event: K,
     listener: StateMachineEvents[K],
   ): this {
@@ -56,7 +56,7 @@ class StateMachineEmitter {
     return this;
   }
 
-  once<K extends keyof StateMachineEvents & string>(
+  once<K extends keyof StateMachineEvents>(
     event: K,
     listener: StateMachineEvents[K],
   ): this {
@@ -64,14 +64,14 @@ class StateMachineEmitter {
     return this;
   }
 
-  protected emitEvent<K extends keyof StateMachineEvents & string>(
+  protected emitEvent<K extends keyof StateMachineEvents>(
     event: K,
     ...args: Parameters<StateMachineEvents[K]>
   ): boolean {
     return this.emitter.emit(event, ...args);
   }
 
-  removeAllListeners<K extends keyof StateMachineEvents & string>(event?: K): this {
+  removeAllListeners<K extends keyof StateMachineEvents>(event?: K): this {
     if (event) {
       this.emitter.removeAllListeners(event);
     } else {

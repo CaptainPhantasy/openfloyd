@@ -48,6 +48,7 @@ class CronEventSource implements EventSource {
     this.scheduler = new CronScheduler();
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async start(): Promise<void> {
     this.scheduler.setDefaultCallback((block) => {
       if (this.eventHandler) {
@@ -67,6 +68,7 @@ class CronEventSource implements EventSource {
     log.info({ blocks: this.cronBlocks.length }, 'CRON event source started');
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async stop(): Promise<void> {
     this.scheduler.destroy();
     log.info('CRON event source stopped');
@@ -123,12 +125,12 @@ export class Orchestrator {
   async start(): Promise<void> {
     log.info({ config: this.config }, 'Starting OPEN-FLOYD orchestrator');
 
-    const heartbeat = await parseHeartbeat(this.config.heartbeatPath).catch((err) => {
+    const heartbeat = await parseHeartbeat(this.config.heartbeatPath).catch((err: unknown) => {
       log.warn({ err }, 'Failed to parse HEARTBEAT.md — continuing without CRON');
       return null;
     });
 
-    this.soul = await parseSoul(this.config.soulPath).catch((err) => {
+    this.soul = await parseSoul(this.config.soulPath).catch((err: unknown) => {
       log.warn({ err }, 'Failed to parse SOUL.md — continuing without directives');
       return null;
     });
@@ -184,7 +186,7 @@ export class Orchestrator {
     const redisUrl = process.env['REDIS_URL'];
     if (redisUrl) {
       this.redisCache = new RedisCache({ url: redisUrl });
-      await this.redisCache.connect().catch((err) => {
+      await this.redisCache.connect().catch((err: unknown) => {
         log.warn({ err }, 'Failed to connect to Redis — continuing without cache');
         this.redisCache = null;
       });
@@ -290,6 +292,7 @@ export class Orchestrator {
 
     await this.stateMachine.transition('action_planned');
 
+    // Pass all registered tools to the LLM. SOUL.md instructs agent on when to use each one.
     const tools = this.toolRegistry.getDefinitions();
     let iteration = 0;
 

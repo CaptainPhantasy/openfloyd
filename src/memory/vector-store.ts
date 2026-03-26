@@ -138,6 +138,11 @@ export class VectorStore {
     return row.count;
   }
 
+  getRecentIds(limit = 50): string[] {
+    const rows = this.db.prepare('SELECT id FROM memories ORDER BY updated_at DESC LIMIT ?').all(limit) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  }
+
   close(): void {
     this.db.close();
     log.info('Vector store closed');

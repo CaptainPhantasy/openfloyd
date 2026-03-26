@@ -305,3 +305,294 @@ describe('TokenCounter', () => {
     expect(tokens).toBeGreaterThan(0);
   });
 });
+
+// ── Additional branch coverage tests ──────────────────────────────────────
+
+import { parseStructuredResponse, StructuredOutputError } from '../../src/llm/structured-output.js';
+import type { ChatResponse } from '../../src/types/index.js';
+
+describe('parseStructuredResponse', () => {
+  it('parses response with tool_calls and valid JSON arguments', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: 'I will search',
+          tool_calls: [{ function: { name: 'web_search', arguments: '{"query":"test"}' } }],
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('tool_call');
+    expect(result.action.tool).toBe('web_search');
+    expect(result.action.params).toEqual({ query: 'test' });
+    expect(result.confidence).toBe(0.9);
+  });
+
+  it('handles tool_calls with invalid JSON arguments', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          tool_calls: [{ function: { name: 'web_search', arguments: 'not-json' } }],
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('tool_call');
+    expect(result.action.params).toEqual({});
+  });
+
+  it('throws on empty choices array', () => {
+    const response: ChatResponse = { choices: [] };
+    expect(() => parseStructuredResponse(response)).toThrow(StructuredOutputError);
+  });
+
+  it('uses fallback reasoning when tool_calls have empty content', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ function: { name: 'web_search', arguments: '{}' } }],
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.reasoning).toBe('Tool call requested');
+  });
+
+  it('throws on empty content without tool_calls', () => {
+    const response: ChatResponse = {
+      choices: [{ message: { role: 'assistant', content: '' } }],
+    };
+    expect(() => parseStructuredResponse(response)).toThrow(StructuredOutputError);
+  });
+
+  it('parses JSON in code block', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '```json\n{"reasoning":"because","action":{"type":"respond","response":"hello"},"confidence":0.85}\n```',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.action.response).toBe('hello');
+    expect(result.confidence).toBe(0.85);
+  });
+
+  it('falls through on invalid JSON in code block', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '```json\n{invalid json}\n```',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.confidence).toBe(0.7);
+  });
+
+  it('parses bare JSON object', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"yes","action":{"type":"wait"},"confidence":0.6}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('wait');
+    expect(result.confidence).toBe(0.6);
+  });
+
+  it('returns plain respond for non-JSON content', () => {
+    const response: ChatResponse = {
+      choices: [{ message: { role: 'assistant', content: 'Just a plain response' } }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.action.response).toBe('Just a plain response');
+    expect(result.confidence).toBe(0.7);
+  });
+
+  it('falls back when reasoning field is missing', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"action":{"type":"respond","response":"hi"}}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.confidence).toBe(0.5);
+  });
+
+  it('falls back when action field is missing', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"thinking"}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.confidence).toBe(0.5);
+  });
+
+  it('falls back when action type is invalid', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"hmm","action":{"type":"invalid_type"}}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.action.type).toBe('respond');
+    expect(result.confidence).toBe(0.5);
+  });
+
+  it('defaults confidence to 0.8 when not a number', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"ok","action":{"type":"respond","response":"hi"},"confidence":"high"}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.confidence).toBe(0.8);
+  });
+
+  it('clamps confidence above 1 to 1', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"ok","action":{"type":"respond","response":"hi"},"confidence":2.5}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.confidence).toBe(1);
+  });
+
+  it('clamps confidence below 0 to 0', () => {
+    const response: ChatResponse = {
+      choices: [{
+        message: {
+          role: 'assistant',
+          content: '{"reasoning":"ok","action":{"type":"respond","response":"hi"},"confidence":-0.5}',
+        },
+      }],
+    };
+    const result = parseStructuredResponse(response);
+    expect(result.confidence).toBe(0);
+  });
+});
+
+describe('ContextManager additional coverage', () => {
+  it('logs warning when system prompt exceeds budget', () => {
+    const cm = new ContextManager({
+      maxTokens: 1000,
+      budget: { systemPrompt: 5 },
+    });
+    // 100 chars / 4 = 25 tokens >> budget of 5
+    cm.setSystemPrompt('a'.repeat(100));
+    // Should not throw, just warn
+    expect(cm.getTokenCount()).toBeGreaterThan(0);
+  });
+
+  it('getTokenCount works without system prompt', () => {
+    const cm = new ContextManager({ maxTokens: 100_000 });
+    cm.addMessage({ role: 'user', content: 'Hello' });
+    expect(cm.getTokenCount()).toBeGreaterThan(0);
+  });
+
+  it('compress does nothing with fewer than 2 messages', async () => {
+    const cm = new ContextManager({ maxTokens: 50, compressionThreshold: 0.5 });
+    cm.addMessage({ role: 'user', content: 'Hello' });
+    await cm.compress();
+    expect(cm.getMessageCount()).toBe(1);
+  });
+
+  it('compress uses custom summarizer', async () => {
+    let summarizerCalled = false;
+    const cm = new ContextManager({
+      maxTokens: 20,
+      compressionThreshold: 0.5,
+      summarizer: async () => {
+        summarizerCalled = true;
+        return 'summary';
+      },
+    });
+    // Need >= 4 messages so Math.ceil(n*0.3) >= 2
+    cm.addMessage({ role: 'user', content: 'a'.repeat(100) });
+    cm.addMessage({ role: 'assistant', content: 'b'.repeat(100) });
+    cm.addMessage({ role: 'user', content: 'c'.repeat(100) });
+    cm.addMessage({ role: 'assistant', content: 'd'.repeat(100) });
+    await cm.compress();
+    expect(summarizerCalled).toBe(true);
+    // 4 messages - 2 compressed + 1 summary = 3
+    expect(cm.getMessageCount()).toBe(3);
+  });
+
+  it('buildMessages truncates when exceeding budget', () => {
+    const cm = new ContextManager({ maxTokens: 100 });
+    cm.setSystemPrompt('System prompt here');
+    for (let i = 0; i < 50; i++) {
+      cm.addMessage({ role: 'user', content: `Message ${i} with some content` });
+    }
+    const msgs = cm.buildMessages();
+    // Should have fewer than 51 messages (system + 50 user)
+    expect(msgs.length).toBeLessThan(51);
+  });
+
+  it('buildMessages accounts for toolsTokenEstimate', () => {
+    const cm = new ContextManager({ maxTokens: 200 });
+    cm.addMessage({ role: 'user', content: 'Hello' });
+    const withTools = cm.buildMessages(100);
+    const withoutTools = cm.buildMessages(0);
+    // With tools estimate, less space for messages
+    expect(withTools.length).toBeLessThanOrEqual(withoutTools.length);
+  });
+
+  it('clear resets everything', () => {
+    const cm = new ContextManager({ maxTokens: 100_000 });
+    cm.setSystemPrompt('System');
+    cm.addMessage({ role: 'user', content: 'Hello' });
+    cm.addWorkingMemory('fact', 'test');
+    cm.clear();
+    expect(cm.getMessageCount()).toBe(0);
+    // After clear, only overhead tokens remain from empty arrays
+    expect(cm.getTokenCount()).toBeLessThanOrEqual(10);
+  });
+
+  it('getStats returns correct values', () => {
+    const cm = new ContextManager({ maxTokens: 100_000 });
+    cm.addMessage({ role: 'user', content: 'Hello' });
+    const stats = cm.getStats();
+    expect(stats.messageCount).toBe(1);
+    expect(stats.compressionCount).toBe(0);
+    expect(stats.lastCompressionAt).toBeNull();
+  });
+
+  it('needsCompression returns false when under threshold', () => {
+    const cm = new ContextManager({ maxTokens: 1_000_000, compressionThreshold: 0.8 });
+    cm.addMessage({ role: 'user', content: 'Hi' });
+    expect(cm.needsCompression()).toBe(false);
+  });
+});

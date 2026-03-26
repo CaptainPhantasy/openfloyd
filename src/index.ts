@@ -23,6 +23,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   logger.fatal({ err: error }, 'Failed to start OPEN-FLOYD');
   process.exit(1);
 });
