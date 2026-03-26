@@ -199,6 +199,21 @@ export class Orchestrator {
       llm: this.gateway?.getUsageStats(),
       memory: this.vectorStore ? { entries: this.vectorStore.getCount() } : undefined,
     }));
+    this.httpServer.setResetHandler(async () => {
+      this.contextManager.clear();
+      this.promptCache.clear();
+      // Re-read SOUL.md for fresh system prompt
+      try {
+        const soul = await parseSoul(this.config.soulPath);
+        const prompt = soul.directives.map((d) => `[${d.category}] ${d.title}: ${d.content}`).join('\n\n');
+        this.contextManager.setSystemPrompt(prompt);
+        this.promptCache.cacheSystemPrompt(prompt);
+        log.info({ directives: soul.directives.length }, 'Session reset \u2014 SOUL.md reloaded');
+      } catch (err) {
+        log.warn({ err }, 'Failed to reload SOUL.md during reset');
+      }
+    });
+
     await this.httpServer.start();
 
     this.registerShutdownHandlers();

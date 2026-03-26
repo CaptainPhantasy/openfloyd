@@ -47,6 +47,7 @@ export class HttpServer {
   private webChatHandler: WebChatHandler | null = null;
   private fileEditorRoot: string | null = null;
   private onFileUpdated: ((filePath: string, content: string) => void) | null = null;
+  private resetHandler: (() => Promise<void>) | null = null;
   private startedAt = Date.now();
   private sseClients = new Set<ServerResponse>();
   private eventBuffer: DashboardEvent[] = [];
@@ -66,6 +67,10 @@ export class HttpServer {
 
   setWebChatHandler(handler: WebChatHandler): void {
     this.webChatHandler = handler;
+  }
+
+  setResetHandler(handler: () => Promise<void>): void {
+    this.resetHandler = handler;
   }
 
   /**
@@ -263,6 +268,17 @@ export class HttpServer {
         const body = await this.readBody(req);
         log.info({ bodyLength: body.length }, 'Webhook received');
         this.sendJson(res, 200, { received: true });
+        return;
+      }
+
+      if (method === 'POST' && url === '/api/reset') {
+        if (this.resetHandler) {
+          await this.resetHandler();
+          log.info('Chat session reset via dashboard');
+          this.sendJson(res, 200, { ok: true, message: 'Session reset. New messages will use fresh context.' });
+        } else {
+          this.sendJson(res, 503, { error: 'Reset handler not configured' });
+        }
         return;
       }
 
