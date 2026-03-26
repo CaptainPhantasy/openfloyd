@@ -29,10 +29,12 @@
 - **Test**: `npm test` (133 tests)
 - **Build**: `npm run build`
 - **Lint**: `npm run lint`
-- **Start**: `npm start` (Dashboard at http://localhost:8787)
+- **Start**: `REDIS_URL= PORT=8788 node dist/index.js` (Dashboard at http://localhost:8788)
 - **Dev**: `npm run dev` (watch mode)
 
 ## KNOWN PATTERNS & LESSONS
+- [build-restart]: After every `npm run build`, kill and restart the agent: `pkill -9 -f 'node dist/index.js' && REDIS_URL= PORT=8788 node dist/index.js &`
+- [port-conflict]: OrbStack uses port 8787. Agent runs on **8788**. Redis is Docker-only — unset `REDIS_URL` for local dev.
 - [ngrok-mobile]: Remote access uses `floyd-mobile.ngrok.dev` for mobile interface on port 8765
 
 ---
